@@ -40,10 +40,10 @@ the bar — no window switching, no separate login, no config file.
 
 ## Demo
 
-[![Watch the demo](header.png)](demo.mp4)
+A ~1 minute walkthrough of the widget in the bar, the popup panel, and
+library search.
 
-Click the image above (or [demo.mp4](demo.mp4) directly) to watch a ~1 minute
-walkthrough of the widget in the bar, the popup panel, and library search.
+https://github.com/user-attachments/assets/6ad6e854-97b5-4b68-8a05-ac864dc99c39
 
 ## Requirements
 
