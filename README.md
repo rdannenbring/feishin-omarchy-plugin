@@ -18,6 +18,9 @@ Feishin window.
 - **Volume slider** — drag to set Feishin's playback volume directly.
 - **Library search** — search your music server's library from the popup and see
   matching songs with art, title, artist, and album.
+
+<img src="popup.png" alt="Popup panel with transport controls, volume slider, and library search" width="320">
+
 - **Jump to Feishin** — clicking a search result, or the now-playing art/title,
   brings the Feishin window to the front and copies the track/album name to your
   clipboard so it's a paste away in Feishin's own search.
