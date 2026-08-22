@@ -38,6 +38,13 @@ the bar — no window switching, no separate login, no config file.
 - **Zero configuration** — no login, server URL, or API key to enter. The widget
   reuses the same auth token Feishin's own MPRIS integration already exposes.
 
+## Demo
+
+[![Watch the demo](header.png)](demo.mp4)
+
+Click the image above (or [demo.mp4](demo.mp4) directly) to watch a ~1 minute
+walkthrough of the widget in the bar, the popup panel, and library search.
+
 ## Requirements
 
 - [Omarchy](https://omarchy.org/) with its Quickshell-based shell.
