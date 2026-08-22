@@ -1,11 +1,22 @@
 # Feishin for Omarchy
 
+![Feishin for Omarchy](header.png)
+
 A bar-widget plugin for [Omarchy](https://omarchy.org/) that shows what's currently
 playing in [Feishin](https://github.com/jeffvli/feishin) and lets you control it —
 play/pause, skip, volume, and a quick library search — without switching to the
 Feishin window.
 
 ![Feishin widget preview](preview.png)
+
+## Why this exists
+
+I self-host most of my own infrastructure, including my music library, and
+Feishin is my client of choice for playing it back. But alt-tabbing into a
+full player window just to skip a track or see what's playing felt like a lot
+of friction for something that small. This widget puts my self-hosted
+library's now-playing, transport, volume, and search a single click away in
+the bar — no window switching, no separate login, no config file.
 
 ## Features
 
