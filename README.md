@@ -87,6 +87,36 @@ picks that up from the currently-loaded track's art URL and reuses it to query
 your server's `search3` endpoint directly — the same server Feishin itself
 talks to, with no separate login.
 
+## Security model
+
+This widget identifies "the" Feishin player by matching the MPRIS `Identity`
+property reported on the session D-Bus, which is a self-reported string, not
+a verified identity. Any local process the same OS user runs could register
+its own MPRIS player and claim to be Feishin. This is the same trust
+assumption every MPRIS-based bar widget makes to display track art and
+metadata at all — Omarchy's session D-Bus has no stronger guarantee to offer.
+
+Where this widget goes further than a read-only "now playing" display is the
+library-search feature: it makes an outbound HTTP(S) request to whatever
+server origin it reads out of the current track's art URL. Concretely, that
+means:
+
+- The origin must be `http://` or `https://` — anything else is rejected
+  before use.
+- Requests time out after 8 seconds and responses over 1 MB are discarded
+  unparsed, so a slow or oversized reply can't hang the popup indefinitely.
+- No destination allowlist is enforced beyond that, because the whole point
+  of the feature is to reach *your own* self-hosted server, which is
+  legitimately often on `localhost` or a private LAN address.
+
+Net effect: a malicious local process impersonating Feishin could, at most,
+learn what you type into the search box (by pointing the widget at a server
+it controls) or show fake cover art in the popup. It cannot use this widget
+to read files, run commands, or reach anything the widget itself doesn't
+already talk to. If that residual risk matters to you, treat it the same way
+you'd treat any other MPRIS-aware bar widget — it depends on nothing else on
+your system running untrusted code as your user.
+
 ## Known limitation
 
 There is currently no way for anything outside Feishin — this widget included —

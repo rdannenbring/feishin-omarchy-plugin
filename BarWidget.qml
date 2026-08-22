@@ -9,8 +9,12 @@ BarWidget {
   moduleName: "io.github.nag3sy.feishin"
 
   // Feishin (via mpris-service) registers as org.mpris.MediaPlayer2.Feishin
-  // with identity "Feishin". Match loosely so it still works if a future
-  // Feishin build changes casing or appends an instance suffix.
+  // with identity "Feishin". Match on identity only (case-insensitive, for
+  // future casing changes) — not on a dbus-name substring, which any local
+  // MPRIS player could satisfy just by including "feishin" somewhere in a
+  // self-chosen bus name. This is still a self-reported string, not a
+  // cryptographic identity, so it's a courtesy filter rather than a real
+  // trust boundary — see the Security model section in the README.
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var player: findPlayer()
 
@@ -18,9 +22,8 @@ BarWidget {
     for (var i = 0; i < mprisPlayers.length; i++) {
       var p = mprisPlayers[i]
       if (!p) continue
-      var bus = String(p.dbusName || "").toLowerCase()
       var identity = String(p.identity || "").toLowerCase()
-      if (identity === "feishin" || bus.indexOf("feishin") !== -1) return p
+      if (identity === "feishin") return p
     }
     return null
   }
@@ -57,6 +60,7 @@ BarWidget {
 
   function captureAuthFromArtUrl(url) {
     if (!url) return
+    if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) return
     var restIndex = url.indexOf("/rest/")
     var queryIndex = url.indexOf("?")
     if (restIndex < 0 || queryIndex < 0) return
@@ -109,6 +113,9 @@ BarWidget {
       searching = false
       try {
         if (xhr.status !== 200) { searchResults = []; return }
+        // Guard against a malicious or misconfigured server returning an
+        // enormous body — cap what we're willing to hand to JSON.parse.
+        if (xhr.responseText.length > 1000000) { searchResults = []; return }
         var data = JSON.parse(xhr.responseText)
         var resp = data["subsonic-response"]
         if (!resp || resp.status !== "ok") { searchResults = []; return }
@@ -117,7 +124,9 @@ BarWidget {
         searchResults = []
       }
     }
+    xhr.ontimeout = function() { searching = false; searchResults = [] }
     xhr.open("GET", url)
+    xhr.timeout = 8000
     xhr.send()
   }
 
