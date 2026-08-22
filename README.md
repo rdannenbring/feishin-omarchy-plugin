@@ -19,6 +19,7 @@ library's now-playing, transport, volume, and search a single click away in
 the bar — no window switching, no separate login, no config file.
 
 ## Features
+<img width="204" height="28" alt="screenshot-2026-08-22_20-27-54" src="https://github.com/user-attachments/assets/00f3d487-4388-4dc4-a164-e59557dd80e9" />
 
 - **Now playing in the bar** — play/pause icon, mini album art, and a scrolling
   track name that never resizes the bar, however long the title is.
