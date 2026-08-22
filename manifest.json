@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.nag3sy.feishin",
+  "name": "Feishin",
+  "version": "1.1.0",
+  "author": "nag3sy",
+  "license": "MIT",
+  "description": "Now-playing widget with play/pause, skip, volume, and library search for Feishin",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Feishin",
+    "description": "Feishin now-playing with transport and volume controls",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
