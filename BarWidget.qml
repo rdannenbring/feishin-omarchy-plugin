@@ -58,6 +58,10 @@ BarWidget {
   property var searchResults: []
   property bool searching: false
 
+  // Cap applies during transfer (aborted as soon as it's exceeded), not just
+  // to the finished body — see performSearch.
+  readonly property int maxSearchResponseBytes: 1000000
+
   function captureAuthFromArtUrl(url) {
     if (!url) return
     if (url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0) return
@@ -108,14 +112,36 @@ BarWidget {
       + "&songCount=8&albumCount=0&artistCount=0"
 
     var xhr = new XMLHttpRequest()
+    var aborted = false
     xhr.onreadystatechange = function() {
+      // Reject on declared size before the body downloads at all: once
+      // headers are in, Content-Length (when the server sends one) is
+      // known without having pulled any of the body into memory yet.
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        var declaredLength = parseInt(xhr.getResponseHeader("Content-Length"), 10)
+        if (declaredLength > root.maxSearchResponseBytes) {
+          aborted = true
+          xhr.abort()
+        }
+        return
+      }
+      // Belt-and-braces for bodies with no (or a dishonest) Content-Length:
+      // LOADING fires as chunks arrive, so abort mid-transfer the moment
+      // what's been buffered so far crosses the cap, instead of waiting
+      // for the complete response to materialize.
+      if (xhr.readyState === XMLHttpRequest.LOADING) {
+        if (xhr.responseText.length > root.maxSearchResponseBytes) {
+          aborted = true
+          xhr.abort()
+        }
+        return
+      }
       if (xhr.readyState !== XMLHttpRequest.DONE) return
       searching = false
+      if (aborted) { searchResults = []; return }
       try {
         if (xhr.status !== 200) { searchResults = []; return }
-        // Guard against a malicious or misconfigured server returning an
-        // enormous body — cap what we're willing to hand to JSON.parse.
-        if (xhr.responseText.length > 1000000) { searchResults = []; return }
+        if (xhr.responseText.length > root.maxSearchResponseBytes) { searchResults = []; return }
         var data = JSON.parse(xhr.responseText)
         var resp = data["subsonic-response"]
         if (!resp || resp.status !== "ok") { searchResults = []; return }
@@ -286,6 +312,7 @@ BarWidget {
             id: labelText
             anchors.verticalCenter: parent.verticalCenter
             text: root.title + (root.artist ? "  ·  " + root.artist : "")
+            textFormat: Text.PlainText
             color: root.bar.barForeground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.body
@@ -421,6 +448,7 @@ BarWidget {
 
             Text {
               text: root.title || "Feishin — nothing playing"
+              textFormat: Text.PlainText
               color: root.bar.foreground
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.subtitle
@@ -431,6 +459,7 @@ BarWidget {
 
             Text {
               text: root.artist
+              textFormat: Text.PlainText
               color: Qt.darker(root.bar.foreground, 1.3)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.bodySmall
@@ -441,6 +470,7 @@ BarWidget {
 
             Text {
               text: root.player && root.player.trackAlbum ? root.player.trackAlbum : ""
+              textFormat: Text.PlainText
               color: Qt.darker(root.bar.foreground, 1.6)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.caption
@@ -666,6 +696,7 @@ BarWidget {
 
                   Text {
                     text: resultRow.modelData.title || ""
+                    textFormat: Text.PlainText
                     color: root.bar.foreground
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.bodySmall
@@ -675,6 +706,7 @@ BarWidget {
 
                   Text {
                     text: [resultRow.modelData.artist, resultRow.modelData.album].filter(function(v) { return !!v }).join("  ·  ")
+                    textFormat: Text.PlainText
                     color: Qt.darker(root.bar.foreground, 1.5)
                     font.family: root.bar.fontFamily
                     font.pixelSize: Style.font.caption

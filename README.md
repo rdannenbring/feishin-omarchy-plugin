@@ -111,19 +111,24 @@ means:
 
 - The origin must be `http://` or `https://` — anything else is rejected
   before use.
-- Requests time out after 8 seconds and responses over 1 MB are discarded
-  unparsed, so a slow or oversized reply can't hang the popup indefinitely.
+- Requests time out after 8 seconds. Responses over 1 MB are aborted
+  mid-transfer — rejected as soon as the cap is crossed, from the declared
+  `Content-Length` if the server sends one, or from bytes buffered so far
+  otherwise — rather than downloaded in full and only then discarded.
 - No destination allowlist is enforced beyond that, because the whole point
   of the feature is to reach *your own* self-hosted server, which is
   legitimately often on `localhost` or a private LAN address.
+- Track/artist/album metadata and search-result strings are always rendered
+  as plain text (`Text.PlainText`), never QML's default auto-detected rich
+  text, so a malicious value can't smuggle markup into the bar or popup.
 
 Net effect: a malicious local process impersonating Feishin could, at most,
 learn what you type into the search box (by pointing the widget at a server
 it controls) or show fake cover art in the popup. It cannot use this widget
-to read files, run commands, or reach anything the widget itself doesn't
-already talk to. If that residual risk matters to you, treat it the same way
-you'd treat any other MPRIS-aware bar widget — it depends on nothing else on
-your system running untrusted code as your user.
+to read files, run commands, render markup, or reach anything the widget
+itself doesn't already talk to. If that residual risk matters to you, treat
+it the same way you'd treat any other MPRIS-aware bar widget — it depends on
+nothing else on your system running untrusted code as your user.
 
 ## Known limitation
 
