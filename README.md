@@ -7,8 +7,6 @@ playing in [Feishin](https://github.com/jeffvli/feishin) and lets you control it
 play/pause, skip, volume, and a quick library search — without switching to the
 Feishin window.
 
-![Feishin widget preview](preview.png)
-
 ## Why this exists
 
 I self-host most of my own infrastructure, including my music library, and
