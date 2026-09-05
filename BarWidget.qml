@@ -207,6 +207,186 @@ BarWidget {
     }
   }
 
+  // --- Favorite (star) --------------------------------------------------
+  // Subsonic's star/unstar is a plain GET on the same server and the same
+  // credentials the search above already scraped out of the cover-art URL,
+  // so a heart costs no extra config: if search is available, so is this.
+  //
+  // The song id comes from MPRIS `mpris:trackid`, which Feishin publishes as
+  // /org/node/mediaplayer/Feishin/track/<subsonic song id> — the real library
+  // id, not a synthetic one. trackArtUrl's `id=` param is the fallback for
+  // players/versions that don't set a usable trackid.
+  //
+  // Caveat worth knowing: Feishin caches favorite state client-side, so its
+  // own window keeps showing the old heart until it refetches that track.
+
+  property bool isStarred: false
+  property bool starPending: false
+
+  readonly property string currentSongId: songIdForPlayer()
+  readonly property bool canStar: canSearch && currentSongId !== ""
+
+  // Ids we're willing to send back to the server. Deliberately narrow: this
+  // string is interpolated into a request built from a self-reported MPRIS
+  // value, so anything unexpected is dropped rather than forwarded.
+  readonly property var songIdPattern: /^[A-Za-z0-9._~:-]{1,128}$/
+
+  function songIdForPlayer() {
+    if (!player) return ""
+
+    // Preferred: the trackid object path's last segment.
+    var meta = player.metadata
+    if (meta) {
+      var raw = meta["mpris:trackid"]
+      if (raw !== undefined && raw !== null) {
+        var path = String(raw)
+        var slash = path.lastIndexOf("/")
+        var fromPath = slash >= 0 ? path.substring(slash + 1) : path
+        if (songIdPattern.test(fromPath) && fromPath !== "NoTrack") return fromPath
+      }
+    }
+
+    // Fallback: the `id=` param of the cover-art URL. Skip the album/media
+    // cover ids some servers hand out there (al-…, mf-…, pl-…) — starring
+    // those would star the wrong thing, or nothing.
+    var art = player.trackArtUrl || ""
+    var queryIndex = art.indexOf("?")
+    if (art.indexOf("/rest/") < 0 || queryIndex < 0) return ""
+    var parts = art.substring(queryIndex + 1).split("&")
+    for (var i = 0; i < parts.length; i++) {
+      var kv = parts[i].split("=")
+      if (kv.length < 2 || decodeURIComponent(kv[0]) !== "id") continue
+      var fromArt = decodeURIComponent(kv[1])
+      if (!songIdPattern.test(fromArt)) return ""
+      if (/^(al|mf|pl|ar)-/.test(fromArt)) return ""
+      return fromArt
+    }
+    return ""
+  }
+
+  function subsonicUrl(view, params) {
+    var url = authOrigin + "/rest/" + view
+      + "?u=" + encodeURIComponent(authUser)
+      + "&t=" + encodeURIComponent(authToken)
+      + "&s=" + encodeURIComponent(authSalt)
+      + "&v=" + encodeURIComponent(authVersion)
+      + "&c=Feishin&f=json"
+    for (var key in params) {
+      url += "&" + encodeURIComponent(key) + "=" + encodeURIComponent(params[key])
+    }
+    return url
+  }
+
+  // Same size discipline performSearch applies, factored out so the two star
+  // calls get it too: reject on a declared Content-Length before the body
+  // downloads at all, and abort mid-transfer if it crosses the cap anyway.
+  function responseExceedsCap(xhr) {
+    if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+      var declaredLength = parseInt(xhr.getResponseHeader("Content-Length"), 10)
+      return declaredLength > root.maxSearchResponseBytes
+    }
+    if (xhr.readyState === XMLHttpRequest.LOADING) {
+      return xhr.responseText.length > root.maxSearchResponseBytes
+    }
+    return false
+  }
+
+  function refreshStarred() {
+    // Captured so a reply that lands after the track already changed is
+    // dropped instead of painting the previous song's heart on this one.
+    var songId = currentSongId
+    // Gate on the raw inputs rather than on canStar: this runs from
+    // currentSongId's own change handler, and QML has not necessarily
+    // re-evaluated the binding that derives canStar from it yet. Reading
+    // canStar here sees the *previous* value and drops a valid refresh.
+    if (!canSearch || songId === "") {
+      isStarred = false
+      return
+    }
+    var xhr = new XMLHttpRequest()
+    var aborted = false
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED || xhr.readyState === XMLHttpRequest.LOADING) {
+        if (root.responseExceedsCap(xhr)) { aborted = true; xhr.abort() }
+        return
+      }
+      if (xhr.readyState !== XMLHttpRequest.DONE) return
+      if (songId !== root.currentSongId) return
+      if (aborted || xhr.status !== 200) { root.isStarred = false; return }
+      try {
+        var resp = JSON.parse(xhr.responseText)["subsonic-response"]
+        if (!resp || resp.status !== "ok" || !resp.song) { root.isStarred = false; return }
+        // Subsonic omits `starred` entirely when unstarred, and returns the
+        // timestamp it was starred at when it is.
+        root.isStarred = !!resp.song.starred
+      } catch (e) {
+        root.isStarred = false
+      }
+    }
+    xhr.ontimeout = function() { if (songId === root.currentSongId) root.isStarred = false }
+    xhr.open("GET", subsonicUrl("getSong.view", { id: songId }))
+    xhr.timeout = 8000
+    xhr.send()
+  }
+
+  function toggleStar() {
+    var songId = currentSongId
+    if (!canSearch || songId === "" || starPending) return
+    var target = !isStarred
+
+    // Paint optimistically so the click feels instant, then undo it below if
+    // the server disagreed — a heart that lags a round-trip reads as broken.
+    isStarred = target
+    starPending = true
+
+    var xhr = new XMLHttpRequest()
+    var aborted = false
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED || xhr.readyState === XMLHttpRequest.LOADING) {
+        if (root.responseExceedsCap(xhr)) { aborted = true; xhr.abort() }
+        return
+      }
+      if (xhr.readyState !== XMLHttpRequest.DONE) return
+      root.starPending = false
+      // Track moved on; refreshStarred already owns the heart's state now.
+      if (songId !== root.currentSongId) return
+      var ok = !aborted && xhr.status === 200
+      if (ok) {
+        try {
+          var resp = JSON.parse(xhr.responseText)["subsonic-response"]
+          ok = !!resp && resp.status === "ok"
+        } catch (e) {
+          ok = false
+        }
+      }
+      if (!ok) {
+        root.isStarred = !target
+        root.notifyStarFailed(target)
+      }
+    }
+    xhr.ontimeout = function() {
+      root.starPending = false
+      if (songId !== root.currentSongId) return
+      root.isStarred = !target
+      root.notifyStarFailed(target)
+    }
+    xhr.open("GET", subsonicUrl(target ? "star.view" : "unstar.view", { id: songId }))
+    xhr.timeout = 8000
+    xhr.send()
+  }
+
+  function notifyStarFailed(wasStarring) {
+    if (!bar || !bar.shell) return
+    bar.shell.summon("omarchy.osd", JSON.stringify({
+      icon: "media",
+      message: wasStarring ? "Couldn't add to favorites" : "Couldn't remove from favorites",
+      duration: 2600
+    }))
+  }
+
+  onCurrentSongIdChanged: refreshStarred()
+  onCanSearchChanged: refreshStarred()
+
   function playPause() {
     if (!player) return
     if (player.isPlaying && player.canPause) player.pause()
@@ -365,6 +545,42 @@ BarWidget {
           else if (wheel.angleDelta.y < 0 && root.player.canGoNext) root.player.next()
         }
         onEntered: if (root.bar) root.bar.showTooltip(root, root.hasMedia ? (root.title + (root.artist ? " — " + root.artist : "")) : "")
+        onExited: if (root.bar) root.bar.hideTooltip(root)
+      }
+    }
+
+    // Favorite toggle. Only shown once the Subsonic credentials have been
+    // scraped from a cover-art URL and a song id is resolvable, so a
+    // non-Subsonic backend simply never sees it (same gate as search).
+    Item {
+      id: starHit
+      visible: !root.bar.vertical && root.canStar
+      width: visible ? implicitWidth : 0
+      implicitWidth: starGlyph.implicitWidth + Style.space(8)
+      implicitHeight: starGlyph.implicitHeight
+      anchors.verticalCenter: parent.verticalCenter
+
+      Text {
+        id: starGlyph
+        anchors.centerIn: parent
+        text: root.isStarred ? "󰋑" : "󰋕"
+        color: root.isStarred ? Color.accent : Qt.darker(root.bar.barForeground, 1.5)
+        opacity: root.starPending ? 0.6 : 1.0
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.body
+        Behavior on color {
+          enabled: !root.bar || root.bar.foregroundAnimationEnabled
+          ColorAnimation { duration: 160 }
+        }
+        Behavior on opacity { NumberAnimation { duration: 120 } }
+      }
+
+      MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.toggleStar()
+        onEntered: if (root.bar) root.bar.showTooltip(root, root.isStarred ? "Remove from favorites" : "Add to favorites")
         onExited: if (root.bar) root.bar.hideTooltip(root)
       }
     }
@@ -530,6 +746,17 @@ BarWidget {
           enabled: root.player && root.player.canGoNext
           opacity: enabled ? 1.0 : 0.4
           onClicked: if (root.player) root.player.next()
+        }
+
+        Button {
+          visible: root.canStar
+          iconText: root.isStarred ? "󰋑" : "󰋕"
+          foreground: root.isStarred ? Color.accent : root.bar.foreground
+          tooltipText: root.isStarred ? "Remove from favorites" : "Add to favorites"
+          horizontalPadding: Style.spacing.controlPaddingX
+          verticalPadding: Style.spacing.controlPaddingY
+          opacity: root.starPending ? 0.6 : 1.0
+          onClicked: root.toggleStar()
         }
       }
 

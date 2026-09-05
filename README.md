@@ -26,6 +26,11 @@ the bar — no window switching, no separate login, no config file.
 - **Popup panel** — click the art/track name to open a panel with full cover art,
   title/artist/album, and previous/play-pause/next buttons.
 - **Volume slider** — drag to set Feishin's playback volume directly.
+- **Favorite toggle** — a heart beside the track name (and in the popup's
+  transport row) stars or unstars the playing song on your server, and shows
+  what's already starred there. Note that Feishin caches favorite state
+  client-side, so its own window may keep showing the previous heart until it
+  refetches that track.
 - **Library search** — search your music server's library from the popup and see
   matching songs with art, title, artist, and album.
 
@@ -52,10 +57,10 @@ https://github.com/user-attachments/assets/6ad6e854-97b5-4b68-8a05-ac864dc99c39
 - `wl-copy` (part of `wl-clipboard`) for the clipboard bridge described above.
   Already present on a standard Omarchy install.
 - A Subsonic/OpenSubsonic-compatible music server (e.g. Navidrome) for the
-  library search feature. Transport controls (play/pause/skip/volume) work
-  without one — search just won't be available until Feishin has loaded a
-  track's cover art at least once, since that's where the widget reads the
-  server's auth token from.
+  library search and favorite features. Transport controls
+  (play/pause/skip/volume) work without one — search and the heart just won't be
+  available until Feishin has loaded a track's cover art at least once, since
+  that's where the widget reads the server's auth token from.
 
 ## Install
 
